@@ -1,4 +1,5 @@
 #Coded by johann9616@gmail.com
+#version 0.3
 
 import c4d, re
 from c4d import gui
@@ -160,12 +161,30 @@ def listMats(filename ,path):
     print("File location using os.getcwd():", os.getcwd())
     pathClean = path[:path.rfind("\\")]
     search_path =  pathClean+"{0}".format("\\")
-    result = "Result for Humano Mat:\n"
+    result = "Result for Humano Mat "+ filename +" :\n"
+    print ("Result for Humano Mat "+ filename)
     # Wlaking top-down from the root
     for root, dir, files in os.walk(search_path):
         files = [x.lower() for x in files]
         for file in files:
             if file.rfind(filename) > 0:
+                result=search_path+"{0}".format(file)
+    return result
+
+def listMatsAlpha(filename ,path):
+    """
+    find a file in specific folder
+    """
+    print("File location using os.getcwd():", os.getcwd())
+    pathClean = path[:path.rfind("\\")]
+    search_path =  pathClean+"{0}".format("\\")
+    result = "Result for Humano Mat "+ filename +" :\n"
+    print ("Result for Humano Mat "+ filename)
+    # Wlaking top-down from the root
+    for root, dir, files in os.walk(search_path):
+        files = [x.lower() for x in files]
+        for file in files:
+            if file.rfind(filename) > 0 and file.rfind("hair") == -1:
                 result=search_path+"{0}".format(file)
     return result
 
@@ -220,6 +239,35 @@ def listMatsAccALpha(filename ,path):
                     result=search_path+"{0}".format(file)
     print("Alpha for accesories: "+result)
     return result
+
+def listMatsHair(filename ,path, map):
+    """
+    find a file in specific folder
+    """
+    #clean name
+    nameClean = filename[filename.find("Hair"):]
+    filename = nameClean[:nameClean.find("_")]
+    filename = filename.lower()+"_"+map.lower()
+    print("File location using os.getcwd() for Alpha:", os.getcwd())
+    print("#####################")
+    print(filename)
+    pathClean = path[:path.rfind("\\")]
+    search_path =  pathClean+"{0}".format("\\")
+    result = ""
+    # Wlaking top-down from the root
+    for root, dir, files in os.walk(search_path):
+        files = [x.lower() for x in files]
+        for file in files:
+            if file.rfind(filename) > 0:
+                result=search_path+"{0}".format(file)
+        if result == "":
+            for file in files:
+                if file.rfind("Hair_"+map.lower()):
+                    result=search_path+"{0}".format(file)
+    print("Alpha for accesories: "+result)
+    return result
+
+
 from c4d import storage as s
 
 # Functions
@@ -347,6 +395,17 @@ def main(d=0):
         c4d.documents.KillDocument(doc)
     #c4d.EventAdd() # Update Cinema 4D
 
+def find_material(doc, material_name):
+    # Get all materials in the scene
+    materials = doc.GetMaterials()
+
+    # Loop through each material and check its name
+    for material in materials:
+        if material.GetName() == material_name:
+            return material
+
+    return None
+
 def humanoMats(blackPRou=0, whitePRou=1, blackPSpec=0, whitePSpec=1):
     result = ""
     c4d.CallCommand(12112) # Select All
@@ -355,21 +414,28 @@ def humanoMats(blackPRou=0, whitePRou=1, blackPSpec=0, whitePSpec=1):
     matList = doc.GetMaterials()
     print(matList)
     matHumano = None
+    matHair = []
     matAccList = []
     matExport= []
     for mat in matList:
         matStr = str(mat)
         #Setup humano material
-        if matStr.rfind("Accessories")== -1 and matStr.rfind("Export") == -1 and matStr.rfind("LOD") > 0:
+        if matStr.rfind("Accessories")== -1 and matStr.rfind("Export") == -1 and matStr.rfind("LOD") > 0 and matStr.rfind("Hair")== -1:
             matHumano = mat
             print("Human"+matStr)
             result+= "Humano Materials: " + str(matStr)+"\n"
-        if matStr.rfind("Accessories") > 0 and matStr.rfind("Export") == -1 and matStr.rfind("LOD") > 0:
+        #finding hair mat
+        if matStr.rfind("Hair") > 0 and matStr.rfind("Export") == -1 and matStr.rfind("LOD") > 0 and matStr.rfind("Accessories")== -1:
+            matHair.append(mat)
+            print("Human Hair material"+matStr)
+            result+= "Humano Hair Materials: " + str(matStr)+"\n"
+        if matStr.rfind("Accessories") > 0 and matStr.rfind("Export") == -1 and matStr.rfind("LOD") > 0 and matStr.rfind("Hair")== -1:
             matAccList.append(mat)
             print("Accessories"+str(matAccList))
-        if matStr.rfind("ExportMaterial") > 0 and matStr.rfind("Accessories") == -1:
+        if matStr.rfind("ExportMaterial") > 0 and matStr.rfind("Accessories") == -1 and matStr.rfind("Hair")== -1:
             matExport.append(mat)
             print("Export Material"+str(matExport))
+
     #a) Change specular to GGX
     if matHumano == None:
         result += "Warning: Not humano materials found!\n"
@@ -404,26 +470,37 @@ def humanoMats(blackPRou=0, whitePRou=1, blackPSpec=0, whitePSpec=1):
     #e) Add Specular map to Reflection Strenght texture slot
     refStr = matHumano[layer.GetDataID() +c4d.REFLECTION_LAYER_MAIN_SHADER_REFLECTION]
 
-    #get folder
+    #get specular mats for humano
     matFolder = m.GetParameter(c4d.BITMAPSHADER_FILENAME, 1)
     specPath = listMats("specular",matFolder)
-    print(specPath)
+    
     if specPath != "":
+        print("Specular Map for Material " + matHumano.GetName())
+        print(specPath)
+        mat = find_material(doc, matHumano.GetName())
+        layer = mat.GetReflectionLayerIndex(0)
         # 2. The bitmap shader.
         shader = c4d.BaseShader(c4d.Xbitmap)
         shader[c4d.BITMAPSHADER_FILENAME] = specPath
-        matHumano.InsertShader(shader)
+        
         # 3. Add the shader to the material.
-        matHumano[layer.GetDataID() +c4d.REFLECTION_LAYER_MAIN_SHADER_REFLECTION] = shader
-
+        #matHumano[layer.GetDataID() +c4d.REFLECTION_LAYER_MAIN_SHADER_REFLECTION] = shader
+        mat[layer.GetDataID() +c4d.REFLECTION_LAYER_MAIN_SHADER_SPECULAR] = shader
+        #Setup Specular Strength value
+        mat[layer.GetDataID()+c4d.REFLECTION_LAYER_MAIN_VALUE_SPECULAR] = 0.4
+        mat.InsertShader(shader)
         #set specular map
         #refStr.SetParameter(c4d.BITMAPSHADER_FILENAME, 1, specPath)
         #e2) Change Color Profile to Linear
-        refStr = matHumano[layer.GetDataID() +c4d.REFLECTION_LAYER_MAIN_SHADER_REFLECTION]
+        refStr = matHumano[layer.GetDataID() +c4d.REFLECTION_LAYER_MAIN_SHADER_SPECULAR]
         refStr.SetParameter(c4d.BITMAPSHADER_COLORPROFILE, 1, 1)
+        c4d.EventAdd()
+        
         result += "Color Profile: {0}".format(str(refStr.GetParameter(c4d.BITMAPSHADER_COLORPROFILE, 1))+"\n")
     else:
         result += "No shader map for Reflection Strength"
+
+    #get specular mats for humano
 
     #EXTRA WHITE / BLACK POINT
     refStr.SetParameter(c4d.BITMAPSHADER_BLACKPOINT, blackPSpec, 1)
@@ -448,6 +525,36 @@ def humanoMats(blackPRou=0, whitePRou=1, blackPSpec=0, whitePSpec=1):
     normalShader.SetParameter(c4d.BITMAPSHADER_COLORPROFILE, 1, 1)
     result += "Normal Color Profile: {0}".format(str(normalShader.GetParameter(c4d.BITMAPSHADER_COLORPROFILE, 1))+"\n\n")
 
+    #Alpha channel for Humano
+    humano_alpha_path = listMatsAlpha("alpha",matFolder)
+
+    if humano_alpha_path != "":
+        if matHumano[c4d.MATERIAL_USE_ALPHA] == False:
+            matHumano[c4d.MATERIAL_USE_ALPHA] = True
+            print("Alpha channel Enabled")
+
+        alpha = c4d.BaseShader(c4d.Xbitmap)
+        alpha[c4d.BITMAPSHADER_FILENAME] = humano_alpha_path
+
+        print("ALPHA ALERT")
+        print(alpha)
+#            matHumano.InsertShader(alpha)
+        matHumano.Message(c4d.MSG_UPDATE)
+        matHumano.Update(1,1)
+        c4d.EventAdd()
+        # 3. Add the shader to the material.
+        matHumano[layer.GetDataID() +c4d.MATERIAL_ALPHA_SHADER] = alpha
+        #set specular map
+        matHumano.SetParameter(c4d.MATERIAL_ALPHA_SHADER, alpha, c4d.DESCFLAGS_SET_NONE)
+        matHumano.InsertShader(alpha)
+        c4d.EventAdd()
+
+        #e2) Change Color Profile to Linear
+        refStrAlpha = matHumano[layer.GetDataID() +c4d.MATERIAL_ALPHA_SHADER]
+        refStrAlpha.SetParameter(c4d.BITMAPSHADER_COLORPROFILE, 1, 1)
+        result += "Color Profile Alpha: {0}".format(str(refStrAlpha.GetParameter(c4d.BITMAPSHADER_COLORPROFILE, 1))+"\n")
+    else:
+        result += "No Alpha map for alpha channel\n"
     #------------------------------------------------#
     #Accesories setup
     for matAcc in matAccList:
@@ -518,7 +625,7 @@ def humanoMats(blackPRou=0, whitePRou=1, blackPSpec=0, whitePSpec=1):
             alpha = c4d.BaseShader(c4d.Xbitmap)
             alpha[c4d.BITMAPSHADER_FILENAME] = alpPath
 
-            print("ALPHALERT")
+            print("ALPHA ALERT")
             print(alpha)
 #            matAcc.InsertShader(alpha)
             matAcc.Message(c4d.MSG_UPDATE)
@@ -529,6 +636,8 @@ def humanoMats(blackPRou=0, whitePRou=1, blackPSpec=0, whitePSpec=1):
             #set specular map
             matAcc.SetParameter(c4d.MATERIAL_ALPHA_SHADER, alpha, c4d.DESCFLAGS_SET_NONE)
             matAcc.InsertShader(alpha)
+            c4d.EventAdd()
+
             #e2) Change Color Profile to Linear
             refStrAlpha = matAcc[layer.GetDataID() +c4d.MATERIAL_ALPHA_SHADER]
             refStrAlpha.SetParameter(c4d.BITMAPSHADER_COLORPROFILE, 1, 1)
@@ -562,8 +671,128 @@ def humanoMats(blackPRou=0, whitePRou=1, blackPSpec=0, whitePSpec=1):
             result += "Normal Color Profile: {0}".format(str(normalShader.GetParameter(c4d.BITMAPSHADER_COLORPROFILE, 1))+"\n\n")
         else:
             result+= "No Normal Map\n"
-    #material humano / accessories result data
+    #material humano / accessories result data  
+    #----------------------------------------Accesories setup end------------------------------------------------#
+    
+    #----------------------Hair setup--------------------------#
+    for matAcc in matHair:
+        matAcc[layer.GetDataID()+c4d.REFLECTION_LAYER_MAIN_DISTRIBUTION]=3
+        result += "Result for Accesories Mat :"+str(matAcc)+"\n"
 
+        #a) Change specular to GGX
+        layer = matAcc.GetReflectionLayerIndex(0)
+        doc.InsertMaterial(matAcc)
+        doc.InsertMaterial(matAcc)
+        c4d.EventAdd()
+
+        result += "Specular type: {0}".format(str(matAcc[layer.GetDataID()+c4d.REFLECTION_LAYER_MAIN_DISTRIBUTION])+"\n")
+
+        #b Change roughness to 100%
+        matAcc[layer.GetDataID()+c4d.REFLECTION_LAYER_MAIN_VALUE_ROUGHNESS] = 1
+        result += "Roughness: {0}".format(str(matAcc[layer.GetDataID()+c4d.REFLECTION_LAYER_MAIN_VALUE_ROUGHNESS])+"\n")
+
+        m = matAcc[layer.GetDataID()+c4d.REFLECTION_LAYER_MAIN_SHADER_ROUGHNESS]
+        #set Color Profile, flag, value
+        #c) Change Color Profile of roughness map to Linear (ex. Humano_Posed_000111_Roughness_8K.png)
+        specPath = ""
+        alpPath = ""
+        if m != None:
+            rou = m.SetParameter(c4d.BITMAPSHADER_COLORPROFILE, 1, 1)
+
+            #EXTRA flag, value
+            m.SetParameter(c4d.BITMAPSHADER_BLACKPOINT, blackPRou, 1)
+            m.SetParameter(c4d.BITMAPSHADER_WHITEPOINT, whitePRou, 1)
+            result += "Color Profile: {0}".format(str(m.GetParameter(c4d.BITMAPSHADER_COLORPROFILE,1))+"\n")
+            result += "Roughness Black Point: {0}".format(str(m.GetParameter(c4d.BITMAPSHADER_BLACKPOINT,1))+"\n")
+            result += "Roughness White Point: {0}".format(str(m.GetParameter(c4d.BITMAPSHADER_WHITEPOINT,1))+"\n")
+
+            #d) Change reflection Strenght to 100%
+            matAcc[layer.GetDataID() + c4d.REFLECTION_LAYER_MAIN_VALUE_REFLECTION] = 1
+            result += "Reflection Strength: {0}".format(str(matAcc[layer.GetDataID() + c4d.REFLECTION_LAYER_MAIN_VALUE_REFLECTION])+"\n")
+
+            #e) Add Specular map to Reflection Strenght texture slot
+            refStr = matAcc[layer.GetDataID() +c4d.REFLECTION_LAYER_MAIN_SHADER_REFLECTION]
+            refStrAlpha = matAcc[layer.GetDataID() +c4d.MATERIAL_ALPHA_SHADER]
+            #get folder
+            matFolder = m.GetParameter(c4d.BITMAPSHADER_FILENAME, 1)
+        
+            specPath = listMatsHair(str(matAcc),matFolder,"Specular")
+            print(specPath)
+
+            alpPath = listMatsHair(str(matAcc),matFolder, "Alpha")
+            print(alpPath)
+        # 2. The bitmap shader.
+        if specPath != "":
+            shader = c4d.BaseShader(c4d.Xbitmap)
+            shader[c4d.BITMAPSHADER_FILENAME] = specPath
+            matAcc.InsertShader(shader)
+            # 3. Add the shader to the material.
+            matAcc[layer.GetDataID() +c4d.REFLECTION_LAYER_MAIN_SHADER_REFLECTION] = shader
+            #set specular map
+            #refStr.SetParameter(c4d.BITMAPSHADER_FILENAME, 1, specPath)
+            #e2) Change Color Profile to Linear
+            refStr = matAcc[layer.GetDataID() +c4d.REFLECTION_LAYER_MAIN_SHADER_REFLECTION]
+            refStr.SetParameter(c4d.BITMAPSHADER_COLORPROFILE, 1, 1)
+            result += "Color Profile: {0}".format(str(refStr.GetParameter(c4d.BITMAPSHADER_COLORPROFILE, 1))+"\n")
+        else:
+            result += "No shader map for Reflection Strength\n"
+        # 2. The bitmap alpha.
+        if alpPath != "":
+            if matAcc[c4d.MATERIAL_USE_ALPHA] == False:
+                matAcc[c4d.MATERIAL_USE_ALPHA] = True
+                print("Alpha channel Enabled")
+            alpha = c4d.BaseShader(c4d.Xbitmap)
+            alpha[c4d.BITMAPSHADER_FILENAME] = alpPath
+
+            print("ALPHA ALERT")
+            print(alpha)
+#            matAcc.InsertShader(alpha)
+            matAcc.Message(c4d.MSG_UPDATE)
+            matAcc.Update(1,1)
+            c4d.EventAdd()
+            # 3. Add the shader to the material.
+            matAcc[layer.GetDataID() +c4d.MATERIAL_ALPHA_SHADER] = alpha
+            #set specular map
+            matAcc.SetParameter(c4d.MATERIAL_ALPHA_SHADER, alpha, c4d.DESCFLAGS_SET_NONE)
+            matAcc.InsertShader(alpha)
+            c4d.EventAdd()
+
+            #e2) Change Color Profile to Linear
+            refStrAlpha = matAcc[layer.GetDataID() +c4d.MATERIAL_ALPHA_SHADER]
+            refStrAlpha.SetParameter(c4d.BITMAPSHADER_COLORPROFILE, 1, 1)
+            result += "Color Profile Alpha: {0}".format(str(refStrAlpha.GetParameter(c4d.BITMAPSHADER_COLORPROFILE, 1))+"\n")
+        else:
+            result += "No Alpha map for alpha channel\n"
+        #EXTRA WHITE / BLACK POINT
+        refStr.SetParameter(c4d.BITMAPSHADER_BLACKPOINT, blackPSpec, 1)
+        refStr.SetParameter(c4d.BITMAPSHADER_WHITEPOINT, whitePSpec, 1)
+        result += "Reflection Black Point: {0}".format(str(refStr.GetParameter(c4d.BITMAPSHADER_BLACKPOINT,1))+"\n")
+        result += "Reflection White Point: {0}".format(str(refStr.GetParameter(c4d.BITMAPSHADER_WHITEPOINT,1))+"\n")
+
+        #f
+        refStr[layer.GetDataID()+c4d.REFLECTION_LAYER_MAIN_VALUE_SPECULAR] = 0.25
+        result += "Specular Strenght: {0}".format(str(refStr[layer.GetDataID()+c4d.REFLECTION_LAYER_MAIN_VALUE_SPECULAR])+"\n")
+
+        #g
+        matAcc[layer.GetDataID()+c4d.REFLECTION_LAYER_FRESNEL_MODE] = 1
+        result += "Fresnel: {0}".format(str(matAcc[layer.GetDataID()+c4d.REFLECTION_LAYER_FRESNEL_MODE])+"\n")
+
+        #extra setup color layer brigh
+        matAcc[layer.GetDataID()+c4d.REFLECTION_LAYER_COLOR_BRIGHTNESS] = 0.25
+        result += "Color Brightness: {0}".format(str(matAcc[layer.GetDataID()+c4d.REFLECTION_LAYER_FRESNEL_MODE])+"\n")
+
+        #h NormalMap Color Profile MATERIAL_NORMAL_STRENGTH MATERIAL_NORMAL_SHADER
+        #print(result)
+        normalShader = matAcc.GetParameter(c4d.MATERIAL_NORMAL_SHADER, 1)
+
+        if normalShader != None:
+            normalShader.SetParameter(c4d.BITMAPSHADER_COLORPROFILE, 1, 1)
+            result += "Normal Color Profile: {0}".format(str(normalShader.GetParameter(c4d.BITMAPSHADER_COLORPROFILE, 1))+"\n\n")
+        else:
+            result+= "No Normal Map\n"
+    #material humano / accessories result data  
+    #----------------------------------------Accesories setup end------------------------------------------------#
+    
     #4. Look for the Materials with "ExportMaterial" in its name,
     #if there is any, materials from Humano_MaterialsAR.c4d should be merged into the file
     if len(matExport) > 0:
