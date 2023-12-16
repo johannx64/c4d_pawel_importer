@@ -555,6 +555,39 @@ def humanoMats(blackPRou=0, whitePRou=1, blackPSpec=0, whitePSpec=1):
         result += "Color Profile Alpha: {0}".format(str(refStrAlpha.GetParameter(c4d.BITMAPSHADER_COLORPROFILE, 1))+"\n")
     else:
         result += "No Alpha map for alpha channel\n"
+
+    #AO channel for Humano
+    humano_AO_path = listMatsAlpha("_ao_",matFolder)
+
+    if humano_AO_path != "":
+        if matHumano[c4d.MATERIAL_USE_DIFFUSION] == False:
+            matHumano[c4d.MATERIAL_USE_DIFFUSION] = True
+            print("AO (Difusse) channel Enabled")
+
+        diffuse_AO = c4d.BaseShader(c4d.Xbitmap)
+        diffuse_AO[c4d.BITMAPSHADER_FILENAME] = humano_AO_path
+
+        print("AO ALERT")
+        print(diffuse_AO)
+#            matHumano.InsertShader(diffuse_AO)
+        matHumano.Message(c4d.MSG_UPDATE)
+        matHumano.Update(1,1)
+        c4d.EventAdd()
+        # 3. Add the shader to the material.
+        matHumano[layer.GetDataID() +c4d.MATERIAL_DIFFUSION_SHADER] = diffuse_AO
+        #set diffuse AO
+        matHumano.SetParameter(c4d.MATERIAL_DIFFUSION_SHADER, diffuse_AO, c4d.DESCFLAGS_SET_NONE)
+        matHumano.SetParameter(c4d.MATERIAL_DIFFUSION_TEXTUREMIXING, 3 , 1)
+        matHumano.SetParameter(c4d.MATERIAL_DIFFUSION_TEXTURESTRENGTH, 0.3, 1)
+        matHumano.InsertShader(diffuse_AO)
+        c4d.EventAdd()
+
+        #e2) Change Color Profile to Linear
+        refStrAlpha = matHumano[layer.GetDataID() +c4d.MATERIAL_DIFFUSION_SHADER]
+        refStrAlpha.SetParameter(c4d.BITMAPSHADER_COLORPROFILE, 1, 1)
+        result += "Color Profile AO (Diffuse): {0}".format(str(refStrAlpha.GetParameter(c4d.BITMAPSHADER_COLORPROFILE, 1))+"\n")
+    else:
+        result += "No AO (Diffuse) map for channel\n"
     #------------------------------------------------#
     #Accesories setup
     for matAcc in matAccList:
@@ -644,6 +677,7 @@ def humanoMats(blackPRou=0, whitePRou=1, blackPSpec=0, whitePSpec=1):
             result += "Color Profile Alpha: {0}".format(str(refStrAlpha.GetParameter(c4d.BITMAPSHADER_COLORPROFILE, 1))+"\n")
         else:
             result += "No Alpha map for alpha channel\n"
+            
         #EXTRA WHITE / BLACK POINT
         refStr.SetParameter(c4d.BITMAPSHADER_BLACKPOINT, blackPSpec, 1)
         refStr.SetParameter(c4d.BITMAPSHADER_WHITEPOINT, whitePSpec, 1)
@@ -763,6 +797,39 @@ def humanoMats(blackPRou=0, whitePRou=1, blackPSpec=0, whitePSpec=1):
             result += "Color Profile Alpha: {0}".format(str(refStrAlpha.GetParameter(c4d.BITMAPSHADER_COLORPROFILE, 1))+"\n")
         else:
             result += "No Alpha map for alpha channel\n"
+        
+        #AO channel for Hair
+        hair_AO_path = listMatsHair(str(matAcc),matFolder, "_AO_")
+
+        if hair_AO_path != "":
+            if matAcc[c4d.MATERIAL_USE_DIFFUSION] == False:
+                matAcc[c4d.MATERIAL_USE_DIFFUSION] = True
+                print("AO (Difusse) channel Enabled for Hair")
+
+            diffuse_AO_hair = c4d.BaseShader(c4d.Xbitmap)
+            diffuse_AO_hair[c4d.BITMAPSHADER_FILENAME] = hair_AO_path
+
+            print("AO ALERT HAIR")
+            print(diffuse_AO_hair)
+    #            matAcc.InsertShader(diffuse_AO_hair)
+            matAcc.Message(c4d.MSG_UPDATE)
+            matAcc.Update(1,1)
+            c4d.EventAdd()
+            # 3. Add the shader to the material.
+            matAcc[layer.GetDataID() +c4d.MATERIAL_DIFFUSION_SHADER] = diffuse_AO_hair
+            #set diffuse AO
+            matAcc.SetParameter(c4d.MATERIAL_DIFFUSION_SHADER, diffuse_AO_hair, c4d.DESCFLAGS_SET_NONE)
+            matAcc.SetParameter(c4d.MATERIAL_DIFFUSION_TEXTUREMIXING, 3 , 1)
+            matAcc.SetParameter(c4d.MATERIAL_DIFFUSION_TEXTURESTRENGTH, 0.3, 1)
+            matAcc.InsertShader(diffuse_AO_hair)
+            c4d.EventAdd()
+
+            #e2) Change Color Profile to Linear
+            refStrAlpha = matAcc[layer.GetDataID() +c4d.MATERIAL_DIFFUSION_SHADER]
+            refStrAlpha.SetParameter(c4d.BITMAPSHADER_COLORPROFILE, 1, 1)
+            result += "Color Profile AO (Diffuse): {0}".format(str(refStrAlpha.GetParameter(c4d.BITMAPSHADER_COLORPROFILE, 1))+"\n")
+        else:
+            result += "No AO (Diffuse) map for channel\n"
         #EXTRA WHITE / BLACK POINT
         refStr.SetParameter(c4d.BITMAPSHADER_BLACKPOINT, blackPSpec, 1)
         refStr.SetParameter(c4d.BITMAPSHADER_WHITEPOINT, whitePSpec, 1)
